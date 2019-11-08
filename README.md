@@ -3,7 +3,7 @@
 
  In vanilla WoW the default party frames also showed party members' pets. This feature seems to have disappeared somewhere around patch 7.0.3 and is missing in classic as well. Having pet frames is useful in some niche situations and seeing awesome pet names is fun. I created PartyPetFrames to restore the vanilla feeling and functionality of these frames.
 
- Currently the party pet frames are hidden behind a console variable (ShowPartyPets) that can only be changed by loaded addon code. Once unhidden, the party fet frames mostly work with a few shortcomings. The placement of the frames are no longer accurate, pet existence is not tracked properly and the power bars have been lost.
+ Currently the party pet frames are hidden behind a console variable (ShowPartyPets) that can only be changed by loaded addon code. Once the console variable is set, the party pet frames mostly work with a few shortcomings. The placement of the frames are no longer accurate, pet existence is not tracked properly and the power bars have been lost.
 
  PartyPetFrames manages the console variable, updates party pet frames and implements pet power bars. Party pet frames display unit portraits, names, health & power bars and debuffs. The pet frames will be shown when the pets are nearby.
 
