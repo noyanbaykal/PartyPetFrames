@@ -20,9 +20,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -- This is the main class of the addon. It listens to & propagates events and manages the
 -- ShowPartyPets console variable.
 
-local ATTR_ON_EVENT = 'OnEvent'
-local FRAME_TYPE = 'Frame'
-
 -- Forward declaring main variables
 local PartyPetFrames, frameManager
 
@@ -231,14 +228,14 @@ local function InitializeEventMap(safe)
 end
 
 local function InitializeMainFrame()
-  PartyPetFrames = CreateFrame(FRAME_TYPE, PPF_C.PPF_NAME, UIParent)
+  PartyPetFrames = CreateFrame(PPF_C.UIOBJECT_TYPE, PPF_C.PPF_NAME, UIParent)
   PartyPetFrames.deferredState = nil
 
   frameManager = PetFrameManager.new()
 
   InitializeEventMap()
 
-  PartyPetFrames:SetScript(ATTR_ON_EVENT, function(self, event, ...)
+  PartyPetFrames:SetScript(PPF_C.ATTR_ON_EVENT, function(self, event, ...)
     if self.eventHandler[event] ~= nil then
       self.eventHandler[event](event, ...)
     end

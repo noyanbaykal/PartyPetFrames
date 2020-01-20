@@ -35,14 +35,25 @@ local ATTR_UPDATE = 'Update'
 local ATTR_ID = 'id'
 local ATTR_INVOCATIONS = 'invocations'
 local ATTR_PET_CLASS = 'petClass'
+local ATTR_SET_SCRIPT = 'SetScript'
+local ATTR_REGISTER_EVENT = 'RegisterEvent'
+local ATTR_UNREGISTER_EVENT = 'UnregisterEvent'
+local ATTR_ON_EVENT_FUNCTION = 'respond'
+local ATTR_REGEN_CALLBACK = 'RegenCallback'
 
+local ON_EVENT_HANDLER_STRING = 'OnEvent'
 local INVOCATION_ARGUMENT_DELIMITER = ';'
 local PLAYER_REFERENCE = PPF_C.REF_PARTY[1]
 local TARGET_REFERENCE = 'target'
 local INVALID_REFERENCE = 'party5'
 
+local ERROR_INVALID_VARIABLE = function(expected, variable)
+    return string.format('Expect to receive %s only! Got: %s', expected, variable)
+end
+
 local mockPetPowerBar
 local mockedPowerBars
+local mockFrame
 
 local petFrameManager
 
@@ -56,6 +67,45 @@ local function MockDependencies(onTaxi, partySize)
     GetNumGroupMembers = function()
         return partySize
     end
+end
+
+local function MockFrame()
+    local invocations = {}
+
+    mockFrame = {}
+
+    mockFrame[ATTR_SET_SCRIPT] = function(self, handler, func)
+        if handler ~= ON_EVENT_HANDLER_STRING then
+            error(ERROR_INVALID_VARIABLE(ON_EVENT_HANDLER_STRING, handler))
+        end
+
+        mockFrame[ATTR_ON_EVENT_FUNCTION] = func
+        invocations[#invocations + 1] = ATTR_SET_SCRIPT
+    end
+
+    mockFrame[ATTR_REGISTER_EVENT] = function(self, event)
+        luaUnit.assertEquals(PPF_C.EVENT_REGEN, event)
+        invocations[#invocations + 1] = ATTR_REGISTER_EVENT
+    end
+
+    mockFrame[ATTR_UNREGISTER_EVENT] = function(self, event)
+        luaUnit.assertEquals(PPF_C.EVENT_REGEN, event)
+        invocations[#invocations + 1] = ATTR_UNREGISTER_EVENT
+    end
+
+    mockFrame[ATTR_HIDE] = function()
+        invocations[#invocations + 1] = ATTR_HIDE
+    end
+
+    mockFrame[ATTR_INVOCATIONS] = invocations
+
+    CreateFrame = function()
+        return mockFrame
+    end
+end
+
+local function BroadcastEvent(...)
+    mockFrame[ATTR_ON_EVENT_FUNCTION](mockFrame, ...)
 end
 
 local function GetStringInvocationWithEvent(functionName, event)
@@ -109,14 +159,19 @@ function TestPetFrameManager:setUp()
     mockedPowerBars = {}
 
     PetPowerBar = {}
-    PetPowerBar[ATTR_NEW] = function(playerReference)
+    PetPowerBar[ATTR_NEW] = function(playerReference, regenCallback)
+        luaUnit.assertNotEquals(regenCallback, nil)
+
         local mockedPetPowerBar = InitializeMockedPetPowerBar()
         mockedPetPowerBar[ATTR_ID] = playerReference
+        mockedPetPowerBar[ATTR_REGEN_CALLBACK] = regenCallback
 
         mockedPowerBars[playerReference] = mockedPetPowerBar
 
         return mockedPetPowerBar
     end
+
+    MockFrame()
 
     petFrameManager = PetFrameManager.new()
 
@@ -127,11 +182,15 @@ function TestPetFrameManager:tearDown()
     petFrameManager = nil
     mockPetPowerBar = nil
     mockedPowerBars = nil
+    mockFrame = nil
+    CreateFrame = nil
     UnitOnTaxi = nil
     GetNumGroupMembers = nil
 end
 
 function TestPetFrameManager:testInitialization()
+    local expectedFrameInvocationCount = 2
+
     luaUnit.assertNotEquals(petFrameManager, nil)
 
     for i = 1, PPF_C.REF_PARTY_SIZE do
@@ -140,6 +199,9 @@ function TestPetFrameManager:testInitialization()
         luaUnit.assertNotEquals(powerBar, nil)
         luaUnit.assertEquals(powerBar[ATTR_ID], PPF_C.REF_PARTY[i])
     end
+
+    local frameInvocations = mockFrame[ATTR_INVOCATIONS]
+    luaUnit.assertEquals(#frameInvocations, expectedFrameInvocationCount)
 end
 
 function TestPetFrameManager:testHideAll()
@@ -369,7 +431,6 @@ local function UpdateTestHelper(event, reference)
     local powerBar = mockedPowerBars[PLAYER_REFERENCE]
     local invocations = powerBar[ATTR_INVOCATIONS]
     luaUnit.assertEquals(invocations[#invocations], expectedUpdateEventString)
-
 end
 
 function TestPetFrameManager:testUpdatePartyPetEvent()
@@ -394,6 +455,78 @@ end
 
 function TestPetFrameManager:testUpdatePartyPowerMaxEventPetReference()
     UpdateTestHelper(PPF_C.EVENT_PARTY_MAXP, PPF_C.REF_PARTY_PET_1)
+end
+
+local function AwaitRegenRequestedTestHelper(index, expectedInvocationCount)
+    local powerBar = mockedPowerBars[PPF_C.REF_PARTY[index]]
+
+    powerBar[ATTR_REGEN_CALLBACK]()
+
+    local frameInvocations = mockFrame[ATTR_INVOCATIONS]
+    luaUnit.assertEquals(frameInvocations[#frameInvocations], ATTR_REGISTER_EVENT)
+    luaUnit.assertEquals(expectedInvocationCount, #frameInvocations)
+end
+
+function TestPetFrameManager:testAwaitRegenRequested()
+    local expectedInvocationCount = 3
+
+    AwaitRegenRequestedTestHelper(1, expectedInvocationCount)
+end
+
+function TestPetFrameManager:testAwaitRegenRequestedDuplicate()
+    local expectedInvocationCount = 3
+
+    for i = 1, PPF_C.REF_PARTY_SIZE do
+        AwaitRegenRequestedTestHelper(i, expectedInvocationCount)
+    end
+end
+
+local function CheckPowerBarInvocations(expectedInvocationCount)
+    for i = 1, PPF_C.REF_PARTY_SIZE do
+        local powerBar = mockedPowerBars[PPF_C.REF_PARTY[i]]
+        local invocations = powerBar[ATTR_INVOCATIONS]
+
+        luaUnit.assertEquals(expectedInvocationCount, #invocations)
+    end
+end
+
+function TestPetFrameManager:testRegenEnabled()
+    local expectedManagerInvocationCount = 4
+    local expectedPowerBarInvocationCountBefore = 0
+    local expectedPowerBarInvocationCountAfter = expectedPowerBarInvocationCountBefore + 1
+
+    local powerBar = mockedPowerBars[PPF_C.REF_PARTY[1]]
+    powerBar[ATTR_REGEN_CALLBACK]()
+
+    CheckPowerBarInvocations(expectedPowerBarInvocationCountBefore)
+
+    BroadcastEvent(PPF_C.EVENT_REGEN)
+
+    local frameInvocations = mockFrame[ATTR_INVOCATIONS]
+    luaUnit.assertEquals(frameInvocations[#frameInvocations], ATTR_UNREGISTER_EVENT)
+    luaUnit.assertEquals(expectedManagerInvocationCount, #frameInvocations)
+
+    CheckPowerBarInvocations(expectedPowerBarInvocationCountAfter)
+end
+
+function TestPetFrameManager:testRegenRequestSecondPass()
+    local expectedCountInitial = 2
+
+    local frameInvocations = mockFrame[ATTR_INVOCATIONS]
+    luaUnit.assertEquals(expectedCountInitial, #frameInvocations)
+
+    local powerBar = mockedPowerBars[PPF_C.REF_PARTY[1]]
+    powerBar[ATTR_REGEN_CALLBACK]()
+
+    luaUnit.assertEquals(expectedCountInitial + 1, #frameInvocations)
+
+    BroadcastEvent(PPF_C.EVENT_REGEN)
+
+    luaUnit.assertEquals(expectedCountInitial + 2, #frameInvocations)
+
+    powerBar[ATTR_REGEN_CALLBACK]()
+
+    luaUnit.assertEquals(expectedCountInitial + 3, #frameInvocations)
 end
 
 os.exit(luaUnit.LuaUnit.run())
