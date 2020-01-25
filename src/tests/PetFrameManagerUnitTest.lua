@@ -64,7 +64,7 @@ local function MockDependencies(onTaxi, partySize)
         return onTaxi
     end
 
-    GetNumGroupMembers = function()
+    GetNumSubgroupMembers = function()
         return partySize
     end
 end
@@ -154,7 +154,7 @@ end
 
 function TestPetFrameManager:setUp()
     local onTaxi = false
-    local partySize = 5
+    local partySize = 4
 
     mockedPowerBars = {}
 
@@ -185,7 +185,7 @@ function TestPetFrameManager:tearDown()
     mockFrame = nil
     CreateFrame = nil
     UnitOnTaxi = nil
-    GetNumGroupMembers = nil
+    GetNumSubgroupMembers = nil
 end
 
 function TestPetFrameManager:testInitialization()
@@ -205,8 +205,8 @@ function TestPetFrameManager:testInitialization()
 end
 
 function TestPetFrameManager:testHideAll()
-    local partySize = 3
-    GetNumGroupMembers = function()
+    local partySize = 2
+    GetNumSubgroupMembers = function()
         return partySize
     end
 
@@ -232,8 +232,8 @@ function TestPetFrameManager:testHideAllInvalidEvent()
 end
 
 local function PartyChangedTestHelper(partyMemberCount)
-    GetNumGroupMembers = function()
-        return partyMemberCount + 1
+    GetNumSubgroupMembers = function()
+        return partyMemberCount
     end
 
     petFrameManager.PartyChanged(PPF_C.EVENT_PARTY_UPDATE)

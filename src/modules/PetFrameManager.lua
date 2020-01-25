@@ -61,12 +61,12 @@ PetFrameManager.new = function()
   end
 
   local function GetPartyMemberCount()
-    local count = GetNumGroupMembers() - 1
+    local count = GetNumSubgroupMembers()
     if count < 0 then
       count = 0
     end
 
-    return count
+    return math.min(count, REF_PARTY_SIZE)
   end
 
   function self.PartyChanged(event)
