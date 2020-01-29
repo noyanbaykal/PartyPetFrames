@@ -20,9 +20,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -- This is the main class of the addon. It listens to & propagates events and manages the
 -- ShowPartyPets console variable.
 
-local ATTR_ON_EVENT = 'OnEvent'
-local FRAME_TYPE = 'Frame'
-
 -- Forward declaring main variables
 local PartyPetFrames, frameManager
 
@@ -77,6 +74,24 @@ local function UsingRaidStyle()
   return GetCVarBool(PPF_C.CVAR_USE_COMPACT_PARTY_FRAMES) == true
 end
 
+-- Events should be propagated to the frameManager only if the addon is enabled and displaying
+-- party style frames
+local function RouteEvent(functionToCall)
+  return function(...)
+    if PPF_C.SV_GetIsEnabled() == ENUM_STATES[STATE_ON] and not UsingRaidStyle() then
+      functionToCall(...)
+    end
+  end
+end
+
+-- PartyMemberFrame_UpdatePet displays the pet frames even when the pet's are too
+-- far away. While in this state, the pet frame tooltip displays the pet's level as ??.
+-- In addition, the positioning set by this function causes player debuff icons to overlap with
+-- the pet frame. We'll securely posthook into this function to prevent the display misbehaving.
+local function UpdatePetCleanup()
+  RouteEvent(frameManager.PartyChanged)()
+end
+
 local function FinishLoading()
   local sv_isEnabled = PPF_C.SV_GetIsEnabled()
 
@@ -84,6 +99,8 @@ local function FinishLoading()
   PPF_C.RegisterPartyEvents(PartyPetFrames)
   PartyPetFrames:RegisterEvent(PPF_C.EVENT_CVAR_UPDATE)
 
+  hooksecurefunc(PPF_C.OG_UPDATE_PET_FUNC_NAME, UpdatePetCleanup)
+  
   if sv_isEnabled == ENUM_STATES[STATE_OFF] then
     DEFAULT_CHAT_FRAME:AddMessage(PPF_L.DISABLED(PPF_C.PPF_COMMAND, STATE_ON))
   else
@@ -168,32 +185,6 @@ end
 -- ~Lifecycle functions
 
 -- Initialization
--- Events should be propagated to the frameManager only if the addon is enabled and displaying
--- party style frames
-local function RouteEvent(functionToCall)
-  return function(...)
-    if PPF_C.SV_GetIsEnabled() == ENUM_STATES[STATE_ON] and not UsingRaidStyle() then
-      functionToCall(...)
-    end
-  end
-end
-
--- PartyPetFrame.PartyMemberFrame_UpdatePet displays the pet frames even when the pet's are too
--- far away. While in this state, the pet frame tooltip displays the pet's level as ??.
--- In addition, the positioning set by this function causes player debuff icons to overlap with
--- the pet frame.
--- The most reliable way to deal with these shortcomings is to posthook into this function. In terms of
--- long term stability, it is better to leave the function intact and have it call our update
--- function once it's done it's own thing.
-local function HookIntoUpdatePet()
-  local ogUpdatePet =  PartyMemberFrame_UpdatePet
-  PartyMemberFrame_UpdatePet = function(...)
-    ogUpdatePet(...)
-
-    RouteEvent(frameManager.PartyChanged)()
-  end
-end
-
 -- We'll map events to handler functions
 local function InitializeEventMap(safe)
   safe = safe or false
@@ -231,14 +222,14 @@ local function InitializeEventMap(safe)
 end
 
 local function InitializeMainFrame()
-  PartyPetFrames = CreateFrame(FRAME_TYPE, PPF_C.PPF_NAME, UIParent)
+  PartyPetFrames = CreateFrame(PPF_C.UIOBJECT_TYPE, PPF_C.PPF_NAME, UIParent)
   PartyPetFrames.deferredState = nil
 
   frameManager = PetFrameManager.new()
 
   InitializeEventMap()
 
-  PartyPetFrames:SetScript(ATTR_ON_EVENT, function(self, event, ...)
+  PartyPetFrames:SetScript(PPF_C.ATTR_ON_EVENT, function(self, event, ...)
     if self.eventHandler[event] ~= nil then
       self.eventHandler[event](event, ...)
     end
@@ -247,8 +238,6 @@ local function InitializeMainFrame()
   PPF_C.RegisterAddonEvents(PartyPetFrames)
 
   PartyPetFrames:Hide()
-
-  HookIntoUpdatePet()
 end
 
 -- The addon entry is right here

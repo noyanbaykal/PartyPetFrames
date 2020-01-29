@@ -53,15 +53,21 @@ local ATTR_INVOCATIONS = 'invocations'
 local ATTR_ON_EVENT_FUNCTION = 'respond'
 
 local ERROR_INVALID_VARIABLE = function(expected, variable)
-    return string.format('Expect to receive %s only! Got: %s', expected, variable)
+    return string.format('Expected to receive %s only! Got: %s', expected, variable)
 end
 
 local ERROR_INVALID_VALUE = function(newValue, valueType)
     if newValue == nil then
-        return 'Expect to receive an int of type number. Got nil!'
+        return 'Expected to receive an int of type number. Got nil!'
     else
-        return 'Expect to receive an int of type number. Got: '..newValue..' of type: '..valueType
+        return 'Expected to receive an int of type number. Got: '..newValue..' of type: '..valueType
     end
+end
+
+local ERROR_DUPLICATE_POSTHOOK = 'Should posthook only one!'
+
+local ERROR_UNEXPECTED_HOOK = function(targetName)
+    return 'Did not expect to hook into this function: '..targetName
 end
 
 local BUILD_VERSION = 11302
@@ -70,7 +76,7 @@ local INVALID_ARG = 'nonsenseArg'
 local mockMainFrame
 local mockPetFrameManager
 local ogSetShowPartyPets
-local ogUpdatePetCallCounter
+local postHookFunctionUpdatePet
 local showPartyPetsSetCount
 local registeredEvents
 local unregisteredEvents
@@ -248,13 +254,19 @@ local function MockDefaultChatFrame()
     end
 end
 
-local function MockPartyMemberFrame_UpdatePet()
-    ogUpdatePetCallCounter = 0
+local function MockHookSecureFunc()
+    hooksecurefunc = function(targetName, hook)
+        if postHookFunctionUpdatePet ~= nil then
+            error(ERROR_DUPLICATE_POSTHOOK)
+        end
 
-    -- This function is post hooked into by PartyPetFrames. We won't be testing Blizzard's code but
-    -- want to verify that this function is not being called by PartyPetFrames.
-    PartyMemberFrame_UpdatePet = function()
-        ogUpdatePetCallCounter = ogUpdatePetCallCounter + 1
+        if targetName ~= PPF_C.OG_UPDATE_PET_FUNC_NAME then
+            error(ERROR_UNEXPECTED_HOOK)
+        end
+
+        luaUnit.assertNotEquals(hook, nil)
+
+        postHookFunctionUpdatePet = hook
     end
 end
 
@@ -264,7 +276,7 @@ local function SetupAllMocks(lazyLoad)
     MockMainFrame()
     MockConsoleVariables()
     MockDefaultChatFrame()
-    MockPartyMemberFrame_UpdatePet()
+    MockHookSecureFunc()
 
     -- PartyPetFrames.lua needs to execute the addon initialization logic upon being read so we need to
     -- require it once we have mocked the external dependencies, instead of at the top of the file.
@@ -292,7 +304,8 @@ local function TearDownHelper()
     GetCVar = nil
     SetCVar = nil
     DEFAULT_CHAT_FRAME = nil
-    ogUpdatePetCallCounter = nil
+    postHookFunctionUpdatePet = nil
+    hooksecurefunc = nil
     PPF_C.SetShowPartyPets = ogSetShowPartyPets
     showPartyPetsSetCount = nil
 
@@ -1052,6 +1065,7 @@ local function VariableUpdateTestHelper(inCombat, event, isDisabled, commandNext
     if isDisabled then
         expectedSetCvarCount = expectedSetCvarCount - 1
     end
+
     if commandNextState then
         expectedSetCvarCount = expectedSetCvarCount + 1
     end
@@ -1059,8 +1073,6 @@ local function VariableUpdateTestHelper(inCombat, event, isDisabled, commandNext
     luaUnit.assertEquals(showPartyPetsSetCount, expectedSetCvarCount)
 
     AssertStateChange(event)
-
-    luaUnit.assertEquals(ogUpdatePetCallCounter, 0)
 end
 
 --
@@ -1435,8 +1447,6 @@ local function PartyEventsPropagationTestHelper(inCombat, shouldRoute)
     
     local invocations = mockPetFrameManager[ATTR_INVOCATIONS]
     luaUnit.assertEquals(#invocations, expectedEventCount)
-
-    luaUnit.assertEquals(ogUpdatePetCallCounter, 0)
 end
 
 function TestPpf:testPartyEventsRouted()
@@ -1577,159 +1587,163 @@ end
 -- ~PartyEvent tests
 
 -- testUpdatePetPostHook
--- We post hook into this This Blizzard function to improve it's positioning shortcomings. Assert that our
--- post hook works as expected.
-local function UpdatePetPostHookTestHelper()
+-- Verify that our hooksecurefunc callback does not propagate when disabled or using raidstyle.
+local function UpdatePetPostHookTestHelper(inCombat, shouldBlock)
     BroadcastEvent(EVENT_LOADED)
 
     if inCombat then
+        luaUnit.assertEquals(postHookFunctionUpdatePet, nil)
         FinishCombat()
     end
 
-    local expectedCallCount = 1
-    luaUnit.assertEquals(ogUpdatePetCallCounter, expectedCallCount - 1)
-
-    PartyMemberFrame_UpdatePet()
-
-    luaUnit.assertEquals(ogUpdatePetCallCounter, expectedCallCount)
+    luaUnit.assertNotEquals(postHookFunctionUpdatePet, nil)
 
     local invocations = mockPetFrameManager[ATTR_INVOCATIONS]
-    luaUnit.assertEquals(#invocations, expectedCallCount)
+    local countBefore = #invocations
+
+    postHookFunctionUpdatePet()
+
+    if shouldBlock then
+        luaUnit.assertEquals(#invocations, countBefore)
+    else
+        luaUnit.assertEquals(#invocations, countBefore + 1)
+        luaUnit.assertEquals(invocations[#invocations], GetStringInvocationWithArguments(ATTR_PARTY_CHANGED))
+    end
 end
 
-function TestPpf:UpdatePetPostHookTestHelper()
+function TestPpf:testUpdatePetPostHookTestHelper()
     UpdatePetPostHookTestHelper()
 end
 
-function TestPpf:UpdatePetPostHookTestHelperInGroup()
+function TestPpf:testUpdatePetPostHookTestHelperInGroup()
     mockInGroup = true
 
     UpdatePetPostHookTestHelper()
 end
 
-function TestPpf:UpdatePetPostHookTestHelperInRaid()
+function TestPpf:testUpdatePetPostHookTestHelperInRaid()
     mockInRaid = true
 
     UpdatePetPostHookTestHelper()
 end
 
 --
-function TestPpfRaidStyle:UpdatePetPostHookTestHelper()
-    UpdatePetPostHookTestHelper()
+function TestPpfRaidStyle:testUpdatePetPostHookTestHelper()
+    UpdatePetPostHookTestHelper(false, true)
 end
 
-function TestPpfRaidStyle:UpdatePetPostHookTestHelperInGroup()
+function TestPpfRaidStyle:testUpdatePetPostHookTestHelperInGroup()
     mockInGroup = true
 
-    UpdatePetPostHookTestHelper()
+    UpdatePetPostHookTestHelper(false, true)
 end
 
-function TestPpfRaidStyle:UpdatePetPostHookTestHelperInRaid()
+function TestPpfRaidStyle:testUpdatePetPostHookTestHelperInRaid()
     mockInRaid = true
 
-    UpdatePetPostHookTestHelper()
+    UpdatePetPostHookTestHelper(false, true)
 end
 
 --
-function TestPpfDisabled:UpdatePetPostHookTestHelper()
-    UpdatePetPostHookTestHelper()
+function TestPpfDisabled:testUpdatePetPostHookTestHelper()
+    UpdatePetPostHookTestHelper(false, true)
 end
 
-function TestPpfDisabled:UpdatePetPostHookTestHelperInGroup()
+function TestPpfDisabled:testUpdatePetPostHookTestHelperInGroup()
     mockInGroup = true
 
-    UpdatePetPostHookTestHelper()
+    UpdatePetPostHookTestHelper(false, true)
 end
 
-function TestPpfDisabled:UpdatePetPostHookTestHelperInRaid()
+function TestPpfDisabled:testUpdatePetPostHookTestHelperInRaid()
     mockInRaid = true
 
-    UpdatePetPostHookTestHelper()
+    UpdatePetPostHookTestHelper(false, true)
 end
 
 --
-function TestPpfRaidStyleDisabled:UpdatePetPostHookTestHelper()
-    UpdatePetPostHookTestHelper()
+function TestPpfRaidStyleDisabled:testUpdatePetPostHookTestHelper()
+    UpdatePetPostHookTestHelper(false, true)
 end
 
-function TestPpfRaidStyleDisabled:UpdatePetPostHookTestHelperInGroup()
+function TestPpfRaidStyleDisabled:testUpdatePetPostHookTestHelperInGroup()
     mockInGroup = true
 
-    UpdatePetPostHookTestHelper()
+    UpdatePetPostHookTestHelper(false, true)
 end
 
-function TestPpfRaidStyleDisabled:UpdatePetPostHookTestHelperInRaid()
+function TestPpfRaidStyleDisabled:testUpdatePetPostHookTestHelperInRaid()
     mockInRaid = true
 
-    UpdatePetPostHookTestHelper()
+    UpdatePetPostHookTestHelper(false, true)
 end
 
 --
-function TestPpfInCombat:UpdatePetPostHookTestHelper()
-    UpdatePetPostHookTestHelper()
+function TestPpfInCombat:testUpdatePetPostHookTestHelper()
+    UpdatePetPostHookTestHelper(true)
 end
 
-function TestPpfInCombat:UpdatePetPostHookTestHelperInGroup()
+function TestPpfInCombat:testUpdatePetPostHookTestHelperInGroup()
     mockInGroup = true
 
-    UpdatePetPostHookTestHelper()
+    UpdatePetPostHookTestHelper(true)
 end
 
-function TestPpfInCombat:UpdatePetPostHookTestHelperInRaid()
+function TestPpfInCombat:testUpdatePetPostHookTestHelperInRaid()
     mockInRaid = true
 
-    UpdatePetPostHookTestHelper()
+    UpdatePetPostHookTestHelper(true)
 end
 
 --
-function TestPpfInCombatDisabled:UpdatePetPostHookTestHelper()
-    UpdatePetPostHookTestHelper()
+function TestPpfInCombatDisabled:testUpdatePetPostHookTestHelper()
+    UpdatePetPostHookTestHelper(true, true)
 end
 
-function TestPpfInCombatDisabled:UpdatePetPostHookTestHelperInGroup()
+function TestPpfInCombatDisabled:testUpdatePetPostHookTestHelperInGroup()
     mockInGroup = true
 
-    UpdatePetPostHookTestHelper()
+    UpdatePetPostHookTestHelper(true, true)
 end
 
-function TestPpfInCombatDisabled:UpdatePetPostHookTestHelperInRaid()
+function TestPpfInCombatDisabled:testUpdatePetPostHookTestHelperInRaid()
     mockInRaid = true
 
-    UpdatePetPostHookTestHelper()
+    UpdatePetPostHookTestHelper(true, true)
 end
 
 --
-function TestPpfInCombatRaidStyle:UpdatePetPostHookTestHelper()
-    UpdatePetPostHookTestHelper()
+function TestPpfInCombatRaidStyle:testUpdatePetPostHookTestHelper()
+    UpdatePetPostHookTestHelper(true, true)
 end
 
-function TestPpfInCombatRaidStyle:UpdatePetPostHookTestHelperInGroup()
+function TestPpfInCombatRaidStyle:testUpdatePetPostHookTestHelperInGroup()
     mockInGroup = true
 
-    UpdatePetPostHookTestHelper()
+    UpdatePetPostHookTestHelper(true, true)
 end
 
-function TestPpfInCombatRaidStyle:UpdatePetPostHookTestHelperInRaid()
+function TestPpfInCombatRaidStyle:testUpdatePetPostHookTestHelperInRaid()
     mockInRaid = true
 
-    UpdatePetPostHookTestHelper()
+    UpdatePetPostHookTestHelper(true, true)
 end
 
 --
-function TestPpfInCombatRaidStyleDisabled:UpdatePetPostHookTestHelper()
-    UpdatePetPostHookTestHelper()
+function TestPpfInCombatRaidStyleDisabled:testUpdatePetPostHookTestHelper()
+    UpdatePetPostHookTestHelper(true, true)
 end
 
-function TestPpfInCombatRaidStyleDisabled:UpdatePetPostHookTestHelperInGroup()
+function TestPpfInCombatRaidStyleDisabled:testUpdatePetPostHookTestHelperInGroup()
     mockInGroup = true
 
-    UpdatePetPostHookTestHelper()
+    UpdatePetPostHookTestHelper(true, true)
 end
 
-function TestPpfInCombatRaidStyleDisabled:UpdatePetPostHookTestHelperInRaid()
+function TestPpfInCombatRaidStyleDisabled:testUpdatePetPostHookTestHelperInRaid()
     mockInRaid = true
 
-    UpdatePetPostHookTestHelper()
+    UpdatePetPostHookTestHelper(true, true)
 end
 -- ~testUpdatePetPostHook
 

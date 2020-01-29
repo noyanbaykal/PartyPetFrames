@@ -23,23 +23,50 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 local REF_PARTY_SIZE = PPF_C.REF_PARTY_SIZE
 local REF_PARTY = PPF_C.REF_PARTY
 
+local frameName = PPF_C.PPF_NAME..'FrameManager'
+
 PetFrameManager = {}
 
 PetFrameManager.new = function()
   local self = {}
 
+  local frame = CreateFrame(PPF_C.UIOBJECT_TYPE, frameName, UIParent)
+  frame:Hide()
+
+  local registeredToRegenEvents = false -- to avoid registering multiple times
+
+  -- This will be used as a callback by the powerBars to let us know that our state is dirty
+  local RequestAwaitRegen = function()
+    if not registeredToRegenEvents then
+      frame:RegisterEvent(PPF_C.EVENT_REGEN)
+      registeredToRegenEvents = true
+    end
+  end
+
+  local function CombatEnded(event)
+    frame:UnregisterEvent(PPF_C.EVENT_REGEN)
+    self.PartyChanged(event)
+    registeredToRegenEvents = false
+  end
+
+  frame:SetScript(PPF_C.ATTR_ON_EVENT, function(self, event, ...)
+    if event == PPF_C.EVENT_REGEN then
+      CombatEnded(event)
+    end
+  end)
+
   local powerBars = {}
   for i = 1, REF_PARTY_SIZE do
-    powerBars[REF_PARTY[i]] = PetPowerBar.new(REF_PARTY[i])
+    powerBars[REF_PARTY[i]] = PetPowerBar.new(REF_PARTY[i], RequestAwaitRegen)
   end
 
   local function GetPartyMemberCount()
-    local count = GetNumGroupMembers() - 1
+    local count = GetNumSubgroupMembers()
     if count < 0 then
       count = 0
     end
 
-    return count
+    return math.min(count, REF_PARTY_SIZE)
   end
 
   function self.PartyChanged(event)
@@ -91,7 +118,7 @@ PetFrameManager.new = function()
         or event == PPF_C.EVENT_PARTY_POWER or event == PPF_C.EVENT_PARTY_MAXP then
       if PPF_C.REF_PARTY_PET[reference] then
         reference = REF_PARTY[reference]
-      elseif not REF_PARTY[reference]then
+      elseif not REF_PARTY[reference] then
         update = false
       end
     end

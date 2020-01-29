@@ -24,7 +24,6 @@ local KEY_PET_CLASS = 'petClass'
 
 local POWER_BAR_SUFFIX = 'PowerBar'
 
-local UIOBJECT_TYPE = 'Frame'
 local PET_FRAME_ANCHOR_POINT = 'TOPLEFT'
 local POWER_BAR_ANCHOR_POINT = 'LEFT'
 local POWER_BAR_STRATA = 'LOW'
@@ -42,19 +41,19 @@ local PET_FRAME_OFFSET_Y = -53
 
 PetPowerBar = {}
 
-PetPowerBar.new = function(argPlayerRef)
+PetPowerBar.new = function(argPlayerRef, regenCallback)
   local self = {}
   
   -- Initialization
   -- Forward declaring the reference variables
   local petFrame, playerReference, playerIndex, petReference, petFrameReference,
-    petNameReference, petHealthBarReference, powerBarFrameReference
+    petNameReference, petHealthBarReference, powerBarFrameReference, RequestAwaitRegen
 
   local function PowerBarInitialize()
     petFrame = _G[petFrameReference]
     local healthBar = _G[petHealthBarReference]
 
-    local frame = CreateFrame(UIOBJECT_TYPE, powerBarFrameReference, healthBar)
+    local frame = CreateFrame(PPF_C.UIOBJECT_TYPE, powerBarFrameReference, healthBar)
     frame:SetFrameStrata(POWER_BAR_STRATA)
     frame.texture = frame:CreateTexture(nil, POWER_BAR_TEXTURE_LAYER)
     frame:Show()
@@ -75,8 +74,24 @@ PetPowerBar.new = function(argPlayerRef)
   petHealthBarReference = petFrameReference..PPF_C.HEALTH_BAR_SUFFIX
   powerBarFrameReference = petFrameReference..POWER_BAR_SUFFIX
 
+  RequestAwaitRegen = regenCallback
+
   local powerBar = PowerBarInitialize()
   -- ~Initialization
+
+  -- Instead of calling protected functions in combat, we'll let the frame manager know
+  -- that our state is dirty
+  local function CheckCombat()
+    if InCombatLockdown() then
+      if RequestAwaitRegen ~= nil then
+        RequestAwaitRegen()
+      end
+
+      return false
+    end
+
+    return true
+  end
 
   -- Helper functions for displaying the power bar
   local function RoundToPixelCount(count)
@@ -131,11 +146,15 @@ PetPowerBar.new = function(argPlayerRef)
   -- ~Helper functions for displaying the power bar
 
   function self.Show()
-    petFrame:Show()
+    if CheckCombat() then
+      petFrame:Show()
+    end
   end
 
   function self.Hide()
-    petFrame:Hide()
+    if CheckCombat() then
+      petFrame:Hide()
+    end
   end
 
   local function Draw()
@@ -200,6 +219,10 @@ PetPowerBar.new = function(argPlayerRef)
   -- PartyFrame.xml's positionings have a few shortcomings such as not having enough clearance to show
   -- pet debuffs and pet frames being too far to the left.
   function self.FixFramePosition()
+    if not CheckCombat() then
+      return
+    end
+
     local playerFrame = _G[PPF_C.REF_PARTY_FRAME[playerReference]]
 
     -- The first party member frame does not need to be fixed because it's anchored to the

@@ -25,6 +25,11 @@ PPF_C.PPF_COMMAND = '/ppf'
 PPF_C.PPF_NAME = 'PartyPetFrames'
 PPF_C.PPF_COMMAND_LINE_NAME = string.upper(PPF_C.PPF_NAME)
 
+PPF_C.OG_UPDATE_PET_FUNC_NAME = "PartyMemberFrame_UpdatePet"
+
+PPF_C.UIOBJECT_TYPE = 'Frame'
+PPF_C.ATTR_ON_EVENT = 'OnEvent'
+
 -- We'll map state strings to integers that represent addon state
 PPF_C.STATE_ON = 'enable' -- These will be used in slash commands too
 PPF_C.STATE_OFF = 'disable'
