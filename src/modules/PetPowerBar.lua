@@ -47,7 +47,7 @@ PetPowerBar.new = function(argPlayerRef, regenCallback)
   -- Initialization
   -- Forward declaring the reference variables
   local petFrame, playerReference, playerIndex, petReference, petFrameReference,
-    petNameReference, petHealthBarReference, powerBarFrameReference, RequestAwaitRegen
+    petHealthBarReference, powerBarFrameReference, RequestAwaitRegen
 
   local function PowerBarInitialize()
     petFrame = _G[petFrameReference]
@@ -58,9 +58,6 @@ PetPowerBar.new = function(argPlayerRef, regenCallback)
     frame.texture = frame:CreateTexture(nil, POWER_BAR_TEXTURE_LAYER)
     frame:Show()
 
-    local petNameText = _G[petNameReference]
-    petNameText:Show()
-
     return frame
   end
 
@@ -70,7 +67,6 @@ PetPowerBar.new = function(argPlayerRef, regenCallback)
   playerIndex = tonumber(string.sub(playerReference, -1))
   petReference = playerReference..PPF_C.PET_SUFFIX
   petFrameReference = PPF_C.REF_PET_FRAME[playerReference]
-  petNameReference = petFrameReference..PPF_C.PET_NAME_SUFFIX
   petHealthBarReference = petFrameReference..PPF_C.HEALTH_BAR_SUFFIX
   powerBarFrameReference = petFrameReference..POWER_BAR_SUFFIX
 
@@ -216,42 +212,8 @@ PetPowerBar.new = function(argPlayerRef, regenCallback)
     end
   end
 
-  -- PartyFrame.xml's positionings have a few shortcomings such as not having enough clearance to show
-  -- pet debuffs and pet frames being too far to the left.
-  function self.FixFramePosition()
-    if not CheckCombat() then
-      return
-    end
-
-    local playerFrame = _G[PPF_C.REF_PARTY_FRAME[playerReference]]
-
-    -- The first party member frame does not need to be fixed because it's anchored to the
-    -- CompactRaidFrameManager.
-    if playerReference ~= PPF_C.REF_PARTY[1] then
-      local prevPlayerIndex = playerIndex - 1
-      local prevPlayerReference = PPF_C.REF_PARTY[prevPlayerIndex]
-      local petFrameAbove = _G[PPF_C.REF_PET_FRAME[prevPlayerReference]]
-
-      local offsetY = PLAYER_FRAME_OFFSET_Y
-      if not petFrameAbove:IsVisible() then
-        offsetY = PLAYER_FRAME_OFFSET_Y_UP
-      end
-
-      playerFrame:ClearAllPoints()
-      playerFrame:SetPoint(PLAYER_FRAME_ANCHOR_POINT, petFrameAbove, PLAYER_FRAME_RELATIVE_POINT,
-        PLAYER_FRAME_OFFSET_X, offsetY)
-    end
-
-    local petFrame = _G[petFrameReference]
-    petFrame:ClearAllPoints()
-    petFrame:SetPoint(PET_FRAME_ANCHOR_POINT, playerFrame, PET_FRAME_ANCHOR_POINT, PET_FRAME_OFFSET_X,
-      PET_FRAME_OFFSET_Y)
-  end
-
   function self.Set(event)
     SetPetClass()
-
-    self.FixFramePosition()
 
     self.Update(event)
   end

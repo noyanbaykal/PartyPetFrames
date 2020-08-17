@@ -29,7 +29,6 @@ local ATTR_CLEAR = 'Clear'
 local ATTR_IS_PET_CLASS = 'IsPetClass'
 local ATTR_HIDE = 'Hide'
 local ATTR_SHOW = 'Show'
-local ATTR_FIX_FRAME_POSITION = 'FixFramePosition'
 local ATTR_UPDATE = 'Update'
 -- The attributes below do not exist in the PetPowerBar class, they are used here for convenience
 local ATTR_ID = 'id'
@@ -136,10 +135,6 @@ local function InitializeMockedPetPowerBar()
     
     mockPetPowerBar[ATTR_SHOW] = function()
         invocations[#invocations + 1] = ATTR_SHOW
-    end
-    
-    mockPetPowerBar[ATTR_FIX_FRAME_POSITION] = function()
-        invocations[#invocations + 1] = ATTR_FIX_FRAME_POSITION
     end
     
     mockPetPowerBar[ATTR_UPDATE] = function(event)
@@ -314,8 +309,7 @@ function TestPetFrameManager:testPlayerToggledDisableEvent()
 
     local invocations = powerBar[ATTR_INVOCATIONS]
 
-    luaUnit.assertEquals(invocations[(#invocations) - 1], ATTR_HIDE)
-    luaUnit.assertEquals(invocations[#invocations], ATTR_FIX_FRAME_POSITION)
+    luaUnit.assertEquals(invocations[#invocations], ATTR_HIDE)
 end
 
 function TestPetFrameManager:testPlayerToggledOnTaxi()
@@ -330,8 +324,7 @@ function TestPetFrameManager:testPlayerToggledOnTaxi()
 
     local invocations = powerBar[ATTR_INVOCATIONS]
 
-    luaUnit.assertEquals(invocations[(#invocations) - 1], ATTR_HIDE)
-    luaUnit.assertEquals(invocations[#invocations], ATTR_FIX_FRAME_POSITION)
+    luaUnit.assertEquals(invocations[#invocations], ATTR_HIDE)
 end
 
 local function PlayerToggledTestHelper(playerIndex)
@@ -349,14 +342,13 @@ local function PlayerToggledTestHelper(playerIndex)
     end
 
     local invocations = powerBar[ATTR_INVOCATIONS]
-    luaUnit.assertEquals(invocations[(#invocations) - 1], ATTR_SHOW)
-    luaUnit.assertEquals(invocations[#invocations], ATTR_FIX_FRAME_POSITION)
+    luaUnit.assertEquals(invocations[#invocations], ATTR_SHOW)
 
     for i = playerIndex + 1, PPF_C.REF_PARTY_SIZE do
         local powerBar = mockedPowerBars[PPF_C.REF_PARTY[i]]
         local invocations = powerBar[ATTR_INVOCATIONS]
-
-        luaUnit.assertEquals(invocations[#invocations], ATTR_FIX_FRAME_POSITION)
+        
+        luaUnit.assertEquals(invocations, {})
     end
 end
 

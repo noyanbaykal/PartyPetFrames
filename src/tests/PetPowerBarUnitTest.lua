@@ -50,7 +50,6 @@ local MOCK_POWER_COLOR = {['r'] = 0, ['g'] = 0, ['b'] = 1}
 
 local mockPetFrame
 local mockHealthBar
-local mockNameFrame
 local mockPowerBarFrame
 local mockPlayerFrame
 local mockPetFrameAbove
@@ -91,16 +90,6 @@ local function MockPetFrame(mockDrawDependencies)
     end
 
     return petFrame
-end
-
-local function MockPetNameFrame()
-    local petNameFrame = {}
-
-    petNameFrame[ATTR_SHOW] = function()
-        petNameFrame[ATTR_SHOW] = MOCK_VARIABLE_WAS_ACCESSED
-    end
-
-    return petNameFrame
 end
 
 local function MockPowerBarFrame(mockDrawDependencies)
@@ -197,18 +186,15 @@ end
 local function SetupInitializationMocks(index, mockDrawDependencies, responseBuffer)
     local expectedPetFrameReference = PPF_C.REF_PET_FRAME[PPF_C.REF_PARTY[index]]
     local expectedPetHealthBarReference = expectedPetFrameReference .. PPF_C.HEALTH_BAR_SUFFIX
-    local expectedPetNameReference = expectedPetFrameReference .. PPF_C.PET_NAME_SUFFIX
 
     if not responseBuffer then
         responseBuffer = {}
     end
 
     mockPetFrame = MockPetFrame(mockDrawDependencies)
-    mockNameFrame = MockPetNameFrame()
     mockPowerBarFrame = MockPowerBarFrame(mockDrawDependencies)
 
     responseBuffer[expectedPetFrameReference] = mockPetFrame
-    responseBuffer[expectedPetNameReference] = mockNameFrame
 
     if mockDrawDependencies then
         mockDrawFunctionCalled = {}
@@ -298,7 +284,6 @@ end
 local function ClearAllMocks()
     mockPetFrame = nil
     mockHealthBar = nil
-    mockNameFrame = nil
     mockPowerBarFrame = nil
     mockPlayerFrame = nil
     mockPetFrameAbove = nil
@@ -339,8 +324,6 @@ function TestPetPowerBar:testInitialization()
     luaUnit.assertEquals(mockPowerBarFrame[ATTR_SET_FRAME_STRATA], MOCK_VARIABLE_WAS_ACCESSED)
     luaUnit.assertEquals(mockPowerBarFrame[ATTR_CREATE_TEXTURE], MOCK_VARIABLE_WAS_ACCESSED)
     luaUnit.assertEquals(mockPowerBarFrame[ATTR_SHOW], MOCK_VARIABLE_WAS_ACCESSED)
-
-    luaUnit.assertEquals(mockNameFrame[ATTR_SHOW], MOCK_VARIABLE_WAS_ACCESSED)
 end
 
 function TestPetPowerBar:testShow()
@@ -378,39 +361,10 @@ function TestPetPowerBar:testSetUnitClassUnavailable()
 
     powerBar.Set(nil)
 
-    luaUnit.assertEquals(mockPetFrame[ATTR_CLEAR_ALL_POINTS], MOCK_VARIABLE_WAS_ACCESSED)
-    luaUnit.assertEquals(mockPetFrame[ATTR_SET_POINT], MOCK_VARIABLE_WAS_ACCESSED)
     luaUnit.assertEquals(mockPetFrame[ATTR_HIDE], MOCK_VARIABLE_WAS_ACCESSED)
     luaUnit.assertNotEquals(mockPetFrame[ATTR_SHOW], MOCK_VARIABLE_WAS_ACCESSED)
 
     luaUnit.assertEquals(unitClassCallCount, expectedUnitClassCallCount)
-end
-
-function TestPetPowerBar:testFixFramePosition2()
-    local expectedCallbackInvocations = 0
-    local playerIndex = 2
-    local playerReference = PPF_C.REF_PARTY[playerIndex]
-
-    UnitClass = function()
-        return nil
-    end
-
-    _G = SetupInitializationMocks(playerIndex)
-
-    local powerBar = PetPowerBar.new(playerReference)
-
-    powerBar.Set(nil)
-
-    luaUnit.assertEquals(mockPlayerFrame[ATTR_CLEAR_ALL_POINTS], MOCK_VARIABLE_WAS_ACCESSED)
-    luaUnit.assertEquals(mockPlayerFrame[ATTR_SET_POINT], MOCK_VARIABLE_WAS_ACCESSED)
-
-    luaUnit.assertEquals(mockPetFrameAbove[ATTR_IS_VISIBLE], MOCK_VARIABLE_WAS_ACCESSED)
-
-    luaUnit.assertEquals(mockPetFrame[ATTR_CLEAR_ALL_POINTS], MOCK_VARIABLE_WAS_ACCESSED)
-    luaUnit.assertEquals(mockPetFrame[ATTR_SET_POINT], MOCK_VARIABLE_WAS_ACCESSED)
-    luaUnit.assertEquals(mockPetFrame[ATTR_HIDE], MOCK_VARIABLE_WAS_ACCESSED)
-
-    luaUnit.assertEquals(#mockRegenCallback, expectedCallbackInvocations)
 end
 
 function TestPetPowerBar:testClear()
@@ -698,7 +652,7 @@ function TestPetPowerBarCombatLockdown:testHide()
 end
 
 function TestPetPowerBarCombatLockdown:testSet()
-    local expectedCallbackInvocations = 2
+    local expectedCallbackInvocations = 1
     local playerPresence = true
     local petPresence = true
     local playerOnTaxi = false
@@ -712,17 +666,6 @@ function TestPetPowerBarCombatLockdown:testSet()
     powerBar.Set(nil)
 
     luaUnit.assertEquals(#mockRegenCallback, expectedCallbackInvocations)
-end
-
-function TestPetPowerBarCombatLockdown:testFixFramePosition()
-    local expectedCallbackInvocations = 1
-
-    local powerBar = PetPowerBar.new(PLAYER_REFERENCE, RegenCallback)
-
-    powerBar.FixFramePosition()
-
-    luaUnit.assertEquals(#mockRegenCallback, expectedCallbackInvocations)
-    luaUnit.assertNotEquals(mockPetFrame[ATTR_CLEAR_ALL_POINTS], MOCK_VARIABLE_WAS_ACCESSED)
 end
 
 os.exit(luaUnit.LuaUnit.run())

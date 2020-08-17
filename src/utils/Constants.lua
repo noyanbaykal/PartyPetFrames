@@ -147,7 +147,6 @@ PPF_C.REF_PET_FRAME = {
 
 PPF_C.PET_SUFFIX = 'pet'
 PPF_C.HEALTH_BAR_SUFFIX = 'HealthBar'
-PPF_C.PET_NAME_SUFFIX = 'Name'
 
 -- We'll listen to any changes to this setting during the game.
 PPF_C.EVENT_RAID_FRAMES_SETTING = 'USE_RAID_STYLE_PARTY_FRAMES'
