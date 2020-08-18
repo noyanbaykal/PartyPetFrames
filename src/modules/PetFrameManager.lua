@@ -89,20 +89,10 @@ PetFrameManager.new = function()
       return
     end
 
-    if powerBars[reference].IsPetClass() ~= true then
+    if powerBars[reference].IsPetClass() ~= true or disable or UnitOnTaxi(reference) then
       powerBars[reference].Hide()
     else
-      if disable or UnitOnTaxi(reference) then
-        powerBars[reference].Hide()
-      else
-        powerBars[reference].Show()
-      end
-
-      local index = tonumber(string.sub(reference, -1))
-
-      for i = index, GetPartyMemberCount() do
-        powerBars[REF_PARTY[i]].FixFramePosition()
-      end
+      powerBars[reference].Show()
     end
   end
   
