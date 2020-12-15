@@ -19,7 +19,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 luaUnit = require('luaunit')
 
-package.path = package.path .. ";../?.lua"
+package.path = package.path .. ';../?.lua'
 require('utils.Constants')
 require('modules.PetFrameManager')
 
