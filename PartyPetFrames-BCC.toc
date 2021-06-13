@@ -15,7 +15,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-## Interface: 11307
+## Interface: 20501
 ## Title: PartyPetFrames
 ## Version: 1.1.4
 ## Notes: Manages the visibility of the party pet frames and implements party pet frame power bars.
