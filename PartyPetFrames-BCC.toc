@@ -17,7 +17,7 @@
 
 ## Interface: 20502
 ## Title: PartyPetFrames
-## Version: 1.1.5
+## Version: 1.1.6
 ## Notes: Manages the visibility of the party pet frames and implements party pet frame power bars.
 ## SavedVariablesPerCharacter: PPF_IsEnabled
 
