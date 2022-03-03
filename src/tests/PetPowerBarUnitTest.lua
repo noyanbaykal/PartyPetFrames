@@ -183,13 +183,11 @@ local function MockCombatLockDown(inLockdown)
     mockRegenCallback = {}
 end
 
-local function SetupInitializationMocks(index, mockDrawDependencies, responseBuffer)
+local function SetupInitializationMocks(index, mockDrawDependencies)
     local expectedPetFrameReference = PPF_C.REF_PET_FRAME[PPF_C.REF_PARTY[index]]
     local expectedPetHealthBarReference = expectedPetFrameReference .. PPF_C.HEALTH_BAR_SUFFIX
 
-    if not responseBuffer then
-        responseBuffer = {}
-    end
+    local responseBuffer = {}
 
     mockPetFrame = MockPetFrame(mockDrawDependencies)
     mockPowerBarFrame = MockPowerBarFrame(mockDrawDependencies)
@@ -289,7 +287,6 @@ local function ClearAllMocks()
     mockPetFrameAbove = nil
     mockDrawFunctionCalled = nil
     mockRegenCallback = nil
-    _G = nil
     CreateFrame = nil
     UnitClass = nil
     UnitGUID = nil
